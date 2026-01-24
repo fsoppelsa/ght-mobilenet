@@ -1,0 +1,29 @@
+# Requirements per i progetti Hough e MobileNet
+# Papers - Computer Vision Studies
+# UniPA A.A. 2025/2026
+
+# Computer Vision
+#opencv-python>=4.8.0
+#opencv-contrib-python>=4.8.0
+
+# Data Science
+#numpy>=1.24.0
+matplotlib>=3.7.0
+timm
+tabulate
+yt-dlp
+
+# Deep Learning
+#torch>=2.0.0
+#torchvision>=0.15.0
+
+# Dataset Management
+pycocotools>=2.0.7
+
+# Download e utility
+requests>=2.31.0
+tqdm>=4.66.0
+kaggle>=1.6.0
+
+# Image Processing
+Pillow>=10.0.0

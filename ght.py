@@ -158,6 +158,8 @@ def detect_starfish_ght(image_path, template_edges, template_center, standard_si
     # 2. Preprocessing
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray_blurred = cv2.GaussianBlur(gray, (5, 5), 1.4)
+
+    # Tengo per motivi didiattici
     target_edges = cv2.Canny(gray_blurred, 50, 150)
     
     # 3. Crea detector OpenCV Generalized Hough Ballard
@@ -167,12 +169,14 @@ def detect_starfish_ght(image_path, template_edges, template_center, standard_si
     ght.setTemplate(template_edges, template_center)
     
     # 5. Parametri del detector
-    ght.setMinDist(50)
+    # Da ablation test
+    # >> setVotesThreshold(20) + setMinDist(100) + setCannyLowThresh(10)
+    ght.setMinDist(100)
     ght.setDp(2)
-    ght.setCannyLowThresh(50)
-    ght.setCannyHighThresh(150)
+    ght.setCannyLowThresh(10)
+    ght.setCannyHighThresh(30)
     ght.setLevels(360)
-    ght.setVotesThreshold(15)
+    ght.setVotesThreshold(20)
     
     # 6. Rileva usando GHT
     try:
@@ -805,7 +809,7 @@ def print_evaluation_report(eval_results, method_name):
 
 
 def compare_methods_with_ground_truth(image_paths, template_gray, ground_truth, 
-                                      distance_threshold=50, standard_size=STANDARD_SIZE):
+                                      distance_threshold=100, standard_size=STANDARD_SIZE):
     """
     Confronta tutti e tre i metodi usando ground truth.
     
@@ -813,7 +817,7 @@ def compare_methods_with_ground_truth(image_paths, template_gray, ground_truth,
         image_paths: lista di percorsi immagini da testare
         template_gray: immagine template in scala di grigi
         ground_truth: dict da load_ground_truth()
-        distance_threshold: soglia distanza per TP (default 50px)
+        distance_threshold: soglia distanza per TP (default 100px)
         standard_size: dimensione normalizzata
     
     Ritorna:
@@ -890,52 +894,70 @@ def plot_comparison_with_ground_truth(comparison_results):
     # Estrai metriche
     precisions = [comparison_results[m.lower()]['evaluation']['precision'] for m in methods]
     recalls = [comparison_results[m.lower()]['evaluation']['recall'] for m in methods]
+    f1_scores = [comparison_results[m.lower()]['evaluation']['f1_score'] for m in methods]
     avg_times = [comparison_results[m.lower()]['avg_time'] * 1000 for m in methods]  # Convert to ms
     
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    fig.suptitle('Confronto Metodi con Ground Truth', fontsize=16, fontweight='bold')
+    # Crea figura con 3 righe
+    # Riga 1: Precision, Recall, F1
+    # Riga 2: Tempo medio
+    # Riga 3: Conteggi TP/FP/FN
+    fig = plt.figure(figsize=(15, 15))
+    gs = fig.add_gridspec(3, 3, hspace=0.4)
+    
+    # --- RIGA 1: Metriche (Precision, Recall, F1) ---
+    ax_prec = fig.add_subplot(gs[0, 0])
+    ax_rec = fig.add_subplot(gs[0, 1])
+    ax_f1 = fig.add_subplot(gs[0, 2])
     
     # Precision
-    axes[0].bar(methods, precisions, color=colors, alpha=0.7, edgecolor='black')
-    axes[0].set_ylabel('Precision', fontsize=12)
-    axes[0].set_ylim(0, 1.05)
-    axes[0].set_title('Precision', fontsize=14, fontweight='bold')
-    axes[0].grid(axis='y', alpha=0.3)
-    axes[0].axhline(y=1.0, color='green', linestyle='--', linewidth=1, alpha=0.5)
-    
-    for i, (m, p) in enumerate(zip(methods, precisions)):
-        axes[0].text(i, p + 0.02, f'{p:.1%}', ha='center', fontsize=11, fontweight='bold')
+    ax_prec.bar(methods, precisions, color=colors, alpha=0.7, edgecolor='black')
+    ax_prec.set_ylim(0, 1.05)
+    ax_prec.set_title('Precision', fontsize=12, fontweight='bold')
+    ax_prec.grid(axis='y', alpha=0.3)
+    ax_prec.axhline(y=1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
+    for i, p in enumerate(precisions):
+        ax_prec.text(i, p + 0.02, f'{p:.1%}', ha='center', fontsize=10, fontweight='bold')
     
     # Recall
-    axes[1].bar(methods, recalls, color=colors, alpha=0.7, edgecolor='black')
-    axes[1].set_ylabel('Recall', fontsize=12)
-    axes[1].set_ylim(0, 1.05)
-    axes[1].set_title('Recall', fontsize=14, fontweight='bold')
-    axes[1].grid(axis='y', alpha=0.3)
-    axes[1].axhline(y=1.0, color='green', linestyle='--', linewidth=1, alpha=0.5)
+    ax_rec.bar(methods, recalls, color=colors, alpha=0.7, edgecolor='black')
+    ax_rec.set_ylim(0, 1.05)
+    ax_rec.set_title('Recall', fontsize=12, fontweight='bold')
+    ax_rec.grid(axis='y', alpha=0.3)
+    ax_rec.axhline(y=1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
+    for i, r in enumerate(recalls):
+        ax_rec.text(i, r + 0.02, f'{r:.1%}', ha='center', fontsize=10, fontweight='bold')
+        
+    # F1 Score
+    ax_f1.bar(methods, f1_scores, color=colors, alpha=0.7, edgecolor='black')
+    ax_f1.set_ylim(0, 1.05)
+    ax_f1.set_title('F1 Score', fontsize=12, fontweight='bold')
+    ax_f1.grid(axis='y', alpha=0.3)
+    ax_f1.axhline(y=1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
+    for i, f in enumerate(f1_scores):
+        ax_f1.text(i, f + 0.02, f'{f:.1%}', ha='center', fontsize=10, fontweight='bold')
     
-    for i, (m, r) in enumerate(zip(methods, recalls)):
-        axes[1].text(i, r + 0.02, f'{r:.1%}', ha='center', fontsize=11, fontweight='bold')
+    # --- RIGA 2: Tempo Medio Immagine ---
+    ax_time = fig.add_subplot(gs[1, :])  # Occupa tutta la riga
     
-    # Average Time per Image
-    axes[2].bar(methods, avg_times, color=colors, alpha=0.7, edgecolor='black')
-    axes[2].set_ylabel('Tempo (ms)', fontsize=12)
-    max_time = max(avg_times)
-    axes[2].set_ylim(0, max_time * 1.15)
-    axes[2].set_title('Tempo Medio per Immagine', fontsize=14, fontweight='bold')
-    axes[2].grid(axis='y', alpha=0.3)
+    ax_time.bar(methods, avg_times, color=colors, alpha=0.7, edgecolor='black', width=0.4)
+    ax_time.set_ylabel('Tempo (ms)', fontsize=11)
+    max_time = max(avg_times) if avg_times else 1
+    ax_time.set_ylim(0, max_time * 1.15)
+    ax_time.set_title('Tempo Medio Elaborazione per Immagine', fontsize=12, fontweight='bold')
+    ax_time.grid(axis='y', alpha=0.3)
     
-    for i, (m, t) in enumerate(zip(methods, avg_times)):
-        axes[2].text(i, t + max_time * 0.02, f'{t:.1f}ms', ha='center', fontsize=11, fontweight='bold')
+    for i, t in enumerate(avg_times):
+        ax_time.text(i, t + max_time * 0.02, f'{t:.1f} ms', ha='center', fontsize=10, fontweight='bold')
+        
+    # --- RIGA 3: Conteggi TP, FP, FN ---
+    ax_counts_ght = fig.add_subplot(gs[2, 0])
+    ax_counts_sift = fig.add_subplot(gs[2, 1])
+    ax_counts_ncc = fig.add_subplot(gs[2, 2])
     
-    plt.tight_layout()
-    plt.show()
-    
-    # Confusion Matrix
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    fig.suptitle('Conteggi per metodo', fontsize=16, fontweight='bold')
+    axes_counts = [ax_counts_ght, ax_counts_sift, ax_counts_ncc]
     
     for i, method in enumerate(methods):
+        ax = axes_counts[i]
         eval_data = comparison_results[method.lower()]['evaluation']
         
         # Matrice confusione
@@ -947,13 +969,358 @@ def plot_comparison_with_ground_truth(comparison_results):
         values = [tp, fp, fn]
         bar_colors = ['green', 'red', 'orange']
         
-        axes[i].bar(categories, values, color=bar_colors, alpha=0.7, edgecolor='black')
-        axes[i].set_ylabel('Conteggio', fontsize=12)
-        axes[i].set_title(f'{method}', fontsize=14, fontweight='bold')
-        axes[i].grid(axis='y', alpha=0.3)
+        ax.bar(categories, values, color=bar_colors, alpha=0.7, edgecolor='black')
+        ax.set_title(f'{method} - Conteggi', fontsize=12, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
         
-        for j, (cat, val) in enumerate(zip(categories, values)):
-            axes[i].text(j, val + 0.1, str(val), ha='center', fontsize=11, fontweight='bold')
-    
-    plt.tight_layout()
+        # Totale per scala y
+        max_val = max(values) if values else 1
+        ax.set_ylim(0, max([v for m in methods for v in [
+            comparison_results[m.lower()]['evaluation']['true_positives'],
+            comparison_results[m.lower()]['evaluation']['false_positives'],
+            comparison_results[m.lower()]['evaluation']['false_negatives']
+        ]]) * 1.15 + 1)
+        
+        for k, v in enumerate(values):
+            ax.text(k, v + 0.2, str(v), ha='center', fontweight='bold')
+
+    plt.suptitle('Benchmark Completo: GHT vs SIFT vs NCC', fontsize=16, y=0.95)
     plt.show()
+
+
+
+# FUNZIONI PER IL NOTEBOOK ABLATION STUDY 
+#
+#
+
+import pandas as pd
+import json
+import time
+from itertools import product
+from tqdm import tqdm
+
+# Configurazioni globali per ablation study
+DISTANCE_THRESHOLD = 100     # Soglia per matching con ground truth (pixel)
+GAUSSIAN_KERNEL = (5, 5)    # Kernel per blur
+GAUSSIAN_SIGMA = 1.4        # Sigma per blur
+CANNY_HIGH_THRESH = 150     # Soglia alta Canny (fissa)
+DP_VALUE = 2                # Parametro dp per GHT (fisso)
+LEVELS_VALUE = 360          # Parametro levels per GHT (fisso)
+
+
+def load_dataset(data_dir, template_path, gt_path):
+    """
+    Carica il dataset di immagini e ground truth.
+    
+    Args:
+        data_dir: Path della directory dati
+        template_path: Path del template
+        gt_path: Path del file ground truth JSON
+    
+    Returns:
+        tuple: (lista_immagini, dizionario_ground_truth, template_edges, template_center)
+    """
+    print("Caricamento dataset in corso...")
+    
+    # Carica ground truth
+    with open(gt_path, 'r') as f:
+        ground_truth = json.load(f)
+    
+    # Lista immagini disponibili
+    image_files = list(data_dir.glob('*.jpg'))
+    # Filtra solo quelle con ground truth
+    valid_images = []
+    for img_path in image_files:
+        img_name = img_path.name
+        if img_name in ground_truth:
+            valid_images.append(img_path)
+    
+    print(f"Trovate {len(valid_images)} immagini valide con ground truth")
+    
+    # Carica e preprocessa template
+    template_img = cv2.imread(str(template_path))
+    if template_img is None:
+        raise ValueError(f"Template non trovato: {template_path}")
+    
+    # Preprocessa template
+    template_resized = cv2.resize(template_img, STANDARD_SIZE)
+    template_gray = cv2.cvtColor(template_resized, cv2.COLOR_BGR2GRAY)
+    template_blurred = cv2.GaussianBlur(template_gray, GAUSSIAN_KERNEL, GAUSSIAN_SIGMA)
+    template_edges = cv2.Canny(template_blurred, 50, CANNY_HIGH_THRESH)
+    
+    # Calcola centro template
+    edge_points = np.column_stack(np.where(template_edges > 0))
+    if len(edge_points) > 0:
+        center_y, center_x = np.mean(edge_points, axis=0).astype(int)
+        template_center = (center_x, center_y)
+    else:
+        template_center = (STANDARD_SIZE[0]//2, STANDARD_SIZE[1]//2)
+    
+    print(f"Template processato. Centro: {template_center}")
+    print(f"Pixel di bordo nel template: {np.count_nonzero(template_edges)}")
+    
+    return valid_images, ground_truth, template_edges, template_center
+
+
+def run_ght_detection(image_path, template_edges, template_center, params):
+    """
+    Esegue detection GHT con parametri specificati.
+    
+    Args:
+        image_path: percorso dell'immagine
+        template_edges: bordi del template
+        template_center: centro del template
+        params: dizionario parametri {votes_threshold, min_dist, canny_low_thresh}
+    
+    Returns:
+        dict: {'center': (x,y) or None, 'confidence': float, 'inference_time': float}
+    """
+    start_time = time.time()
+    
+    try:
+        # Carica e preprocessa immagine
+        img = cv2.imread(str(image_path))
+        if img is None:
+            return {'center': None, 'confidence': 0.0, 'inference_time': 0.0}
+        
+        img_resized = cv2.resize(img, STANDARD_SIZE)
+        gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
+        blurred = cv2.GaussianBlur(gray, GAUSSIAN_KERNEL, GAUSSIAN_SIGMA)
+        edges = cv2.Canny(blurred, params['canny_low_thresh'], CANNY_HIGH_THRESH)
+        
+        # Crea detector GHT
+        ght = cv2.createGeneralizedHoughBallard()
+        
+        # Imposta template
+        ght.setTemplate(template_edges, template_center)
+        
+        # Imposta parametri
+        ght.setMinDist(params['min_dist'])
+        ght.setDp(DP_VALUE)
+        ght.setCannyLowThresh(params['canny_low_thresh'])
+        ght.setCannyHighThresh(CANNY_HIGH_THRESH)
+        ght.setLevels(LEVELS_VALUE)
+        ght.setVotesThreshold(params['votes_threshold'])
+        
+        # Rileva
+        positions = ght.detect(edges)
+        
+        # Estrai risultato
+        center = None
+        confidence = 0.0
+        
+        if positions is not None and len(positions) > 0:
+            if positions[0] is not None and len(positions[0]) > 0:
+                pos = positions[0][0]
+                pos_flat = np.array(pos).flatten()
+                if len(pos_flat) >= 2:
+                    center = (int(pos_flat[0]), int(pos_flat[1]))
+                    confidence = float(len(positions[0]) * params['votes_threshold'])
+        
+        inference_time = time.time() - start_time
+        
+        return {
+            'center': center,
+            'confidence': confidence,
+            'inference_time': inference_time
+        }
+        
+    except Exception as e:
+        print(f"Errore nell'elaborazione {image_path}: {e}")
+        return {'center': None, 'confidence': 0.0, 'inference_time': time.time() - start_time}
+
+
+def evaluate_detection(pred_center, gt_center, threshold=DISTANCE_THRESHOLD):
+    """
+    Valuta una detection confrontandola con il ground truth.
+    
+    Args:
+        pred_center: centro predetto (x, y) o None
+        gt_center: centro ground truth (x, y)
+        threshold: soglia distanza per considerare match valido
+    
+    Returns:
+        dict: {'is_tp': bool, 'distance': float}
+    """
+    if pred_center is None:
+        # Nessuna detection -> False Negative
+        return {'is_tp': False, 'distance': float('inf')}
+    
+    # Calcola distanza euclidea
+    distance = np.sqrt((pred_center[0] - gt_center[0])**2 + 
+                      (pred_center[1] - gt_center[1])**2)
+    
+    # Check se è True Positive
+    is_tp = distance <= threshold
+    
+    return {'is_tp': is_tp, 'distance': distance}
+
+
+def calculate_metrics(results_list):
+    """
+    Calcola metriche aggregate da lista di risultati.
+    
+    Args:
+        results_list: lista di dict con 'is_tp', 'distance', 'inference_time'
+    
+    Returns:
+        dict: metriche aggregate
+    """
+    if not results_list:
+        return {
+            'precision': 0.0, 'recall': 0.0, 'f1_score': 0.0,
+            'mean_distance': float('inf'), 'std_distance': 0.0,
+            'mean_inference_time': 0.0
+        }
+    
+    # Conta TP, FP, FN
+    tp = sum(1 for r in results_list if r['is_tp'])
+    fp = sum(1 for r in results_list if not r['is_tp'] and r['distance'] != float('inf'))
+    fn = sum(1 for r in results_list if r['distance'] == float('inf'))
+    
+    # Calcola metriche
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+    recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    f1_score = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    
+    # Distanze (solo per detection valide)
+    valid_distances = [r['distance'] for r in results_list if r['distance'] != float('inf')]
+    mean_distance = np.mean(valid_distances) if valid_distances else float('inf')
+    std_distance = np.std(valid_distances) if len(valid_distances) > 1 else 0.0
+    
+    # Tempo inferenza
+    inference_times = [r['inference_time'] for r in results_list]
+    mean_inference_time = np.mean(inference_times)
+    
+    return {
+        'precision': precision,
+        'recall': recall,
+        'f1_score': f1_score,
+        'mean_distance': mean_distance,
+        'std_distance': std_distance,
+        'mean_inference_time': mean_inference_time,
+        'tp': tp,
+        'fp': fp,
+        'fn': fn
+    }
+
+
+def ablation_study(images, ground_truth, template_edges, template_center):
+    """
+    Esegue l'ablation study completo testando tutte le combinazioni di parametri.
+    
+    Args:
+        images: lista percorsi immagini
+        ground_truth: dizionario ground truth
+        template_edges: bordi template
+        template_center: centro template
+    
+    Returns:
+        pd.DataFrame: risultati completi
+    """
+    # Definisci griglia parametri - SOLO un parametro variabile alla volta
+    # Gli altri devono corrispondere ESATTAMENTE ai default usati in detect_starfish_ght:
+    # min_dist=50, canny_low_thresh=50, votes_threshold=15
+    
+    base_params = {
+        'votes_threshold': 15,
+        'min_dist': 50,
+        'canny_low_thresh': 50
+    }
+    
+    param_grid = {
+        'votes_threshold': [10, 15, 20, 25],
+        'min_dist': [30, 50, 70],
+        'canny_low_thresh': [30, 50, 70]
+    }
+    
+    # Genera configurazioni variando un parametro alla volta
+    param_combinations = []
+    
+    # 1. Varia solo votes_threshold
+    for v in param_grid['votes_threshold']:
+        params = base_params.copy()
+        params['votes_threshold'] = v
+        param_combinations.append((params['votes_threshold'], params['min_dist'], params['canny_low_thresh']))
+        
+    # 2. Varia solo min_dist (escluso default già aggiunto)
+    for v in param_grid['min_dist']:
+        if v == 50: continue
+        params = base_params.copy()
+        params['min_dist'] = v
+        param_combinations.append((params['votes_threshold'], params['min_dist'], params['canny_low_thresh']))
+        
+    # 3. Varia solo canny_low_thresh (escluso default già aggiunto)
+    for v in param_grid['canny_low_thresh']:
+        if v == 50: continue
+        params = base_params.copy()
+        params['canny_low_thresh'] = v
+        param_combinations.append((params['votes_threshold'], params['min_dist'], params['canny_low_thresh']))
+    
+    # Rimuovi duplicati se ce ne sono
+    param_combinations = sorted(list(set(param_combinations)))
+    
+    print(f"Testando {len(param_combinations)} configurazioni su {len(images)} immagini")
+    print(f"Test totali: {len(param_combinations) * len(images)}")
+    
+    results = []
+    
+    # Progress bar per configurazioni
+    for votes_th, min_d, canny_low in tqdm(param_combinations, desc="Configurazioni"):
+        params = {
+            'votes_threshold': votes_th,
+            'min_dist': min_d,
+            'canny_low_thresh': canny_low
+        }
+        
+        # Risultati per questa configurazione
+        config_results = []
+        
+        # Testa su tutte le immagini
+        for img_path in images:
+            img_name = img_path.name
+            
+            # Ottieni ground truth
+            gt_data = ground_truth[img_name]
+            gt_center = tuple(gt_data['center'])  # center è un array [x, y]
+            
+            # Esegui detection
+            detection_result = run_ght_detection(img_path, template_edges, template_center, params)
+            
+            # Valuta risultato
+            evaluation = evaluate_detection(detection_result['center'], gt_center)
+            
+            # Combina risultati
+            combined_result = {
+                'is_tp': evaluation['is_tp'],
+                'distance': evaluation['distance'],
+                'inference_time': detection_result['inference_time']
+            }
+            config_results.append(combined_result)
+        
+        # Calcola metriche per questa configurazione
+        metrics = calculate_metrics(config_results)
+        
+        # Salva risultato
+        result_row = {
+            'votes_threshold': votes_th,
+            'min_dist': min_d,
+            'canny_low_thresh': canny_low,
+            **metrics
+        }
+        results.append(result_row)
+        
+        # Log progresso
+        if len(results) % 10 == 0:
+            print(f"Completate {len(results)}/{len(param_combinations)} configurazioni")
+    
+    # Converti in DataFrame
+    df_results = pd.DataFrame(results)
+    
+    # Ordina per F1-score decrescente
+    df_results = df_results.sort_values('f1_score', ascending=False).reset_index(drop=True)
+    
+    print("\nStudio di ablazione completato!")
+    print(f"Configurazioni testate: {len(df_results)}")
+    
+    return df_results
